@@ -9,7 +9,7 @@ jobs:
       - uses: actions/setup-node@v4
         with: { node-version: 20 }
       - run: npm ci --prefix backend && npm run lint --prefix backend && npm test --prefix backend
-      - run: npm ci --prefix frontend && npm run lint && npm test
+      - run: npm ci --prefix frontend && npm run lint --prefix frontend && npm test --prefix frontend
 
   build-push:
     needs: lint-test
