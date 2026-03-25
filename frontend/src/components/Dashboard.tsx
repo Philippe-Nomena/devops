@@ -9,7 +9,7 @@ export default function Dashboard({ token }: { token: string }) {
 
   useEffect(() => {
     fetchDocuments(token);
-  }, []);
+  }, [token, fetchDocuments]);
 
   const generate = async (type: "cerfa" | "convention") => {
     setLoading(true);
