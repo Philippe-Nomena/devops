@@ -33,31 +33,32 @@ jobs:
           docker push ghcr.io/${REPO}/frontend:latest
 
   deploy:
-    needs: build-push
-    runs-on: ubuntu-latest
-    steps:
-      - name: Deploy to Render (Blue/Green)
-        env:
-          RENDER_DEPLOY_HOOK_BACKEND: ${{ secrets.RENDER_DEPLOY_HOOK_BACKEND }}
-          RENDER_DEPLOY_HOOK_FRONTEND: ${{ secrets.RENDER_DEPLOY_HOOK_FRONTEND }}
-        run: |
-          echo "Déploiement automatique sur Render (Blue/Green)..."
-          curl -X POST "$RENDER_DEPLOY_HOOK_BACKEND" --fail --silent
-          curl -X POST "$RENDER_DEPLOY_HOOK_FRONTEND" --fail --silent
-          echo "Déploiement lancé avec succès"
+  needs: build-push
+  runs-on: ubuntu-latest
+  steps:
+    - name: Deploy to Render (Blue/Green)
+      env:
+        RENDER_DEPLOY_HOOK_BACKEND: ${{ secrets.RENDER_DEPLOY_HOOK_BACKEND }}
+        RENDER_DEPLOY_HOOK_FRONTEND: ${{ secrets.RENDER_DEPLOY_HOOK_FRONTEND }}
+      run: |
+        echo "Déploiement automatique sur Render (Blue/Green)..."
+        curl -X POST "$RENDER_DEPLOY_HOOK_BACKEND" --fail --silent
+        curl -X POST "$RENDER_DEPLOY_HOOK_FRONTEND" --fail --silent
+        echo "Déploiement lancé avec succès"
 
-      - name: Rollback on failure
-        if: failure()
-        env:
-          RENDER_ROLLBACK_URL: ${{ secrets.RENDER_ROLLBACK_URL }}
-          RENDER_API_KEY: ${{ secrets.RENDER_API_KEY }}
-        run: |
-          echo "Rollback déclenché suite à un échec..."
-          if [ -n "$RENDER_ROLLBACK_URL" ]; then
-            curl -X POST "$RENDER_ROLLBACK_URL" \
-                -H "Authorization: Bearer $RENDER_API_KEY" \
-                --fail --silent
-            echo "Rollback exécuté"
-          else
-            echo "Aucun RENDER_ROLLBACK_URL configuré → rollback manuel nécessaire"
-          fi
+    - name: Rollback on failure
+      if: failure()
+      env:
+        RENDER_ROLLBACK_URL: ${{ secrets.RENDER_ROLLBACK_URL }}
+        RENDER_API_KEY: ${{ secrets.RENDER_API_KEY }}
+      run: |
+        set -e
+        echo "Rollback déclenché suite à un échec..."
+        if [ -n "$RENDER_ROLLBACK_URL" ]; then
+          curl -X POST "$RENDER_ROLLBACK_URL" \
+              -H "Authorization: Bearer $RENDER_API_KEY" \
+              --fail --silent
+          echo "Rollback exécuté"
+        else
+          echo "Aucun RENDER_ROLLBACK_URL configuré → rollback manuel nécessaire"
+        fi
