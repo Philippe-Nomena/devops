@@ -1,6 +1,6 @@
 import { render, screen } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import Dashboard from "../components/Dashboard";
+import Dashboard from "../Dashboard"; // ← ../Dashboard au lieu de ../components/Dashboard
 
 beforeEach(() => {
   global.fetch = vi.fn().mockResolvedValue({
