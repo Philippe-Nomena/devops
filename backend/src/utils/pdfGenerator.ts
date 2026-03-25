@@ -24,11 +24,10 @@ export async function generateDocumentPDF(
     size: "A4",
     margins: { top: 50, bottom: 50, left: 50, right: 50 },
   });
-  const buffers: Buffer[] = [];
+  const buffers: Uint8Array[] = [];
   doc.on("data", (chunk) => buffers.push(chunk));
 
   doc.fontSize(20).text(type.toUpperCase(), { align: "center" }).moveDown(2);
-
   doc.fontSize(14).text("Données du titulaire :", { underline: true });
   doc
     .fontSize(12)
@@ -60,8 +59,17 @@ export async function generateDocumentPDF(
   doc.end();
   await new Promise((resolve) => doc.on("end", resolve));
 
-  const pdfBuffer = Buffer.concat(buffers);
+  // ✅ Concatener tous les chunks Uint8Array en un Buffer Node.js
+  const totalLength = buffers.reduce((acc, b) => acc + b.length, 0);
+  const merged = new Uint8Array(totalLength);
+  let offset = 0;
+  for (const b of buffers) {
+    merged.set(b, offset);
+    offset += b.length;
+  }
+  const pdfBuffer = Buffer.from(merged);
 
+  // Sauvegarder dans MongoDB
   await Document.create({
     userId,
     type,

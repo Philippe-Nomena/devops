@@ -1,7 +1,7 @@
 import mongoose from "mongoose";
 import { faker } from "@faker-js/faker";
 import bcrypt from "bcrypt";
-import { User } from "./models/User";
+import { User } from "./src/models/User";
 import dotenv from "dotenv";
 dotenv.config();
 

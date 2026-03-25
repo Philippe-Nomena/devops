@@ -1,64 +1,105 @@
 import { Request, Response } from "express";
+import mongoose from "mongoose";
+import { GridFSBucket, ObjectId as MongoObjectId } from "mongodb";
+import { Document as DocumentModel, IDocument } from "../models/Document";
 import { generateDocumentPDF } from "../utils/pdfGenerator";
-import { CircuitBreaker } from "../utils/circuitBreaker";
-import { metrics, getMetrics } from "../utils/metrics";
-import { Document } from "../models/Document";
+import dotenv from "dotenv";
+dotenv.config();
+// Initialisation du bucket GridFS après connexion Mongoose
+let bucket: GridFSBucket;
+mongoose.connection.once("open", () => {
+  if (!mongoose.connection.db) throw new Error("DB non connectée");
+  bucket = new GridFSBucket(mongoose.connection.db, {
+    bucketName: "documents",
+  });
+});
 
-const breaker = new CircuitBreaker();
-
+// === Génération d'un document PDF et stockage GridFS ===
 export const generateDocument = async (req: Request, res: Response) => {
-  const start = Date.now();
   try {
     const { type } = req.body;
-    const userId = (req as any).user.userId; // extrait du JWT
+    const userId = (req as any).user.userId as mongoose.Types.ObjectId;
 
     if (!["cerfa", "convention"].includes(type))
       return res.status(400).json({ error: "Type invalide" });
 
-    const pdfBuffer = await breaker.execute(async () => {
-      for (let i = 0; i < 3; i++) {
-        try {
-          await new Promise((r) => setTimeout(r, 80));
-          if (Math.random() < 0.08) throw new Error("DocuSign simulé down");
-          return await generateDocumentPDF(userId, type);
-        } catch (e) {
-          if (i === 2) throw e;
-          await new Promise((r) => setTimeout(r, 150 * (i + 1)));
-        }
-      }
-      throw new Error("Échec après retry");
+    // Génération du PDF
+    const pdfBuffer = await generateDocumentPDF(userId.toString(), type);
+
+    // Stockage dans GridFS
+    const uploadStream = bucket.openUploadStream(`${type}-${Date.now()}.pdf`);
+    uploadStream.end(pdfBuffer);
+
+    uploadStream.on("finish", async () => {
+      const fileId = uploadStream.id as unknown as mongoose.Types.ObjectId;
+
+      // Sauvegarde référence dans MongoDB
+      const doc: IDocument = await DocumentModel.create({
+        userId,
+        type,
+        createdAt: new Date(),
+        signatureStatus: "pending",
+        fileId,
+      });
+
+      res.json(doc);
     });
+  } catch (error: any) {
+    console.error(error);
+    res.status(500).json({ error: error.message });
+  }
+};
 
-    metrics.totalDocuments++;
-    metrics.avgResponseTime =
-      (metrics.avgResponseTime * metrics.requestsCount + (Date.now() - start)) /
-      (metrics.requestsCount + 1);
-    metrics.requestsCount++;
+// === Récupération de tous les documents d'un utilisateur ===
+export const getDocuments = async (req: Request, res: Response) => {
+  try {
+    const userId = (req as any).user.userId as mongoose.Types.ObjectId;
+    const docs: IDocument[] = await DocumentModel.find({ userId }).sort({
+      createdAt: -1,
+    });
+    res.json(docs);
+  } catch (error: any) {
+    console.error(error);
+    res.status(500).json({ error: error.message });
+  }
+};
 
+// === Affichage d'un PDF (iframe) ===
+export const viewDocument = async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const doc = await DocumentModel.findById(id);
+    if (!doc) return res.status(404).json({ error: "Document non trouvé" });
+
+    const downloadStream = bucket.openDownloadStream(doc.fileId);
     res.setHeader("Content-Type", "application/pdf");
     res.setHeader(
       "Content-Disposition",
-      `attachment; filename="${type}-${Date.now()}.pdf"`,
+      `inline; filename="${doc.type}-${doc._id}.pdf"`,
     );
-    res.send(pdfBuffer);
+    downloadStream.pipe(res);
   } catch (error: any) {
+    console.error(error);
     res.status(500).json({ error: error.message });
   }
 };
 
-export const getDocuments = async (req: Request, res: Response) => {
+// === Suppression d'un document ===
+export const deleteDocument = async (req: Request, res: Response) => {
   try {
-    const userId = (req as any).user.userId;
-    const docs = await Document.find(
-      { userId },
-      { pdfData: 0 }, // exclure le binaire de la liste
-    ).sort({ createdAt: -1 });
-    res.json(docs);
+    const { id } = req.params;
+    const doc = await DocumentModel.findById(id);
+    if (!doc) return res.status(404).json({ error: "Document non trouvé" });
+
+    // Suppression dans GridFS
+    await bucket.delete(doc.fileId);
+
+    // Suppression de la référence MongoDB
+    await doc.deleteOne();
+
+    res.json({ message: "Document supprimé" });
   } catch (error: any) {
+    console.error(error);
     res.status(500).json({ error: error.message });
   }
-};
-
-export const metricsHandler = async (_req: Request, res: Response) => {
-  res.json(getMetrics());
 };

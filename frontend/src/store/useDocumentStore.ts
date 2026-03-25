@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import BASE_URL from "../url";
 
 interface Document {
   _id: string;
@@ -19,7 +20,7 @@ export const useDocumentStore = create<Store>((set) => ({
     set((state) => ({ documents: [doc, ...state.documents] })),
   fetchDocuments: async (token: string) => {
     try {
-      const res = await fetch("/api/documents", {
+      const res = await fetch(`${BASE_URL}/api/documents`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       if (!res.ok) return;
