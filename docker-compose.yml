@@ -1,4 +1,4 @@
-version: '3.8'
+version: "3.8"
 
 services:
   mongodb:
@@ -9,7 +9,8 @@ services:
     volumes:
       - mongo-data:/data/db
     healthcheck:
-      test: echo 'db.runCommand({ ping: 1 })' | mongosh --quiet
+      test:
+        ["CMD", "mongosh", "--quiet", "--eval", "db.runCommand({ ping: 1 })"]
       interval: 10s
       timeout: 5s
       retries: 5
