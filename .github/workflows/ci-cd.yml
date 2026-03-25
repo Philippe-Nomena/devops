@@ -23,10 +23,11 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
       - run: |
           REPO=$(echo "${{ github.repository }}" | tr '[:upper:]' '[:lower:]')
-          docker build -t ghcr.io/${{ github.repository_owner }}/backend:latest ./backend
-          docker build -t ghcr.io/${{ github.repository_owner }}/frontend:latest ./frontend
-          docker push ghcr.io/${{ github.repository_owner }}/backend:latest
-          docker push ghcr.io/${{ github.repository_owner }}/frontend:latest
+          echo "REPO=${REPO}"
+          docker build -t ghcr.io/${REPO}/backend:latest ./backend
+          docker build -t ghcr.io/${REPO}/frontend:latest ./frontend
+          docker push ghcr.io/${REPO}/backend:latest
+          docker push ghcr.io/${REPO}/frontend:latest
 
   deploy:
     needs: build-push
